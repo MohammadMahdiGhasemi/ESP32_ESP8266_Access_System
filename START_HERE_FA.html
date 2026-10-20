@@ -1,0 +1,437 @@
+<!doctype html><html lang="fa" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>راهنمای سیستم ESP32 و ESP8266</title><style>body{font-family:Tahoma,Arial,sans-serif;line-height:1.95;max-width:1000px;margin:auto;padding:28px;color:#182637;background:#f6f8fb}h1,h2,h3{color:#164d6f;line-height:1.6}h2{margin-top:2.2em;border-bottom:2px solid #dce7ed;padding-bottom:8px}table{border-collapse:collapse;width:100%;background:white;margin:18px 0}td,th{border:1px solid #cbd6dd;padding:9px 12px;text-align:right}th{background:#e7f0f6}code{direction:ltr;unicode-bidi:isolate;display:inline-block;background:#e8edf1;padding:0 4px;border-radius:3px}pre{direction:ltr;text-align:left;background:#152735;color:#e7f1f8;padding:16px;overflow:auto;border-radius:8px}pre code{background:transparent;display:block;white-space:pre}p{overflow-wrap:anywhere}a{color:#145a88}@media print{body{background:white;padding:0;font-size:11pt}h2,h3{break-after:avoid}table,pre{break-inside:avoid}}</style><body><h1>سیستم دو بردی کنترل دسترسی، دما و حرکت</h1>
+<p>این بسته برای ESP32-WROOM-32 معمولی و NodeMCU ESP8266 تهیه شده است. ESP32 شبکهٔ Wi-Fi می‌سازد و NodeMCU به آن متصل می‌شود؛ مودم یا اینترنت لازم نیست. نمایشگر 1602 پیام‌های انگلیسی دارد.</p>
+<h2>فایل‌ها</h2>
+<p>برای خواندن راحت راهنما، <code>START_HERE_FA.html</code> را با مرورگر باز کنید؛ فایل آفلاین است و اینترنت نمی‌خواهد.</p>
+<ul>
+<li><code>ESP32_Master/ESP32_Master.ino</code>: نمایشگر، گیرندهٔ ریموت، بازر و شبکهٔ اصلی.</li>
+<li><code>ESP8266_Node/ESP8266_Node.ino</code>: کارت‌خوان، حافظهٔ کارت، DHT11، حرکت و LEDها.</li>
+<li><code>Core.h</code> در هر پوشه: منطق مشترک؛ همراه فایل ino نگه دارید.</li>
+<li><code>tests/test_core.cpp</code>: آزمون رایانه‌ای منطق مشترک؛ برای آپلود لازم نیست.</li>
+<li><code>VALIDATION.md</code>: نتیجهٔ بررسی‌های این نسخه و محدودیت آزمون.</li>
+</ul>
+<h2>رفتار سیستم</h2>
+<table>
+<thead>
+<tr>
+<th>رویداد</th>
+<th>نتیجه</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>حالت عادی</td>
+<td>نمایش دما و رطوبت؛ خواندن DHT11 هر ۲٫۵ ثانیه</td>
+</tr>
+<tr>
+<td>حرکت جدید</td>
+<td>یک بوق و پیام Motion detected</td>
+</tr>
+<tr>
+<td>کارت ناشناخته</td>
+<td>LED قرمز، سه بوق و Access Denied</td>
+</tr>
+<tr>
+<td>دکمهٔ ۱</td>
+<td>ورود به ثبت کارت پس از تأیید ESP8266؛ مهلت ۲۰ ثانیه</td>
+</tr>
+<tr>
+<td>کارت جدید در حالت ثبت</td>
+<td>ذخیرهٔ دائمی، LED سبز، دو بوق و Card saved</td>
+</tr>
+<tr>
+<td>ثبت کارت تکراری</td>
+<td>Already saved؛ بدون مصرف ظرفیت جدید</td>
+</tr>
+<tr>
+<td>کارت ثبت‌شده</td>
+<td>LED سبز، یک بوق و Access Granted</td>
+</tr>
+<tr>
+<td>پایان مهلت</td>
+<td>لغو ثبت و بازگشت به نمایش عادی</td>
+</tr>
+<tr>
+<td>قطع ارتباط تشخیص‌داده‌شده</td>
+<td>لغو ثبت؛ Node offline روی نمایشگر</td>
+</tr>
+<tr>
+<td>حافظه یا فایل خراب</td>
+<td>رد دسترسی؛ بدون پاک‌کردن خودکار کارت‌ها</td>
+</tr>
+</tbody>
+</table>
+<p>ظرفیت ۵۰ کارت است. قطع برق عادی کارت‌ها را پاک نمی‌کند. موفقیت ثبت فقط پس از نوشتن و خواندن دوبارهٔ فایل اعلام می‌شود. اطلاعات با CRC بررسی می‌شود و فایل موقت سپس جایگزین فایل اصلی می‌شود. این روش جای پشتیبان‌گیری یا آزمون قطع برق روی سخت‌افزار را نمی‌گیرد.</p>
+<p>پس از قطع ارتباط، کارت‌های موجود همچنان در ESP8266 بررسی می‌شوند و LEDها کار می‌کنند؛ بوق و نمایش آن رویدادها روی برد خاموش/قطع‌شده ممکن نیست. رویدادهای زمان قطع ارتباط ذخیره و بعداً بازپخش نمی‌شوند. تشخیص قطع خاموش شبکه تا حدود ۶ ثانیه زمان می‌برد. اگر اتصال درست هنگام ثبت قطع شود، ممکن است کارت ذخیره شده باشد ولی پیام موفقیت نرسد؛ بعد از اتصال دوباره کارت را امتحان کنید.</p>
+<p>حرکت بر مبنای تغییر خروجی PIR از LOW به HIGH تشخیص داده می‌شود. HC-SR505 خروجی را چند ثانیه HIGH نگه می‌دارد؛ در این فاصله نمی‌توان تک‌تک حرکت‌های فیزیکی را تفکیک کرد. ۳۰ ثانیهٔ اول برای پایدار شدن سنسور نادیده گرفته می‌شود. پیام و بوق کارت نسبت به حرکت هم‌زمان اولویت دارند.</p>
+<h2>قطعات کمکی</h2>
+<ul>
+<li>دو مقاومت ۱ کیلو‌اهم برای LEDها.</li>
+<li>برای DHT11 خام، مقاومت pull-up حدود ۱۰ کیلو‌اهم بین DATA و 3V3؛ اگر روی ماژول وجود دارد لازم نیست اضافه شود.</li>
+<li>مبدل سطح منطقی دوطرفهٔ مناسب I2C مانند ماژول BSS138 برای LCD پنج‌ولتی.</li>
+<li>ترانزیستور NPN مانند 2N2222، مقاومت پایهٔ ۱ کیلو‌اهم و مقاومت ۱۰۰ کیلو‌اهم بین پایه و امیتر برای بازر کم‌مصرف.</li>
+<li>برای بازر مغناطیسی، دیود هرزگرد مناسب مثل 1N4148 برای جریان کم؛ کاتد به مثبت بازر و آند به کلکتور.</li>
+<li>تغذیهٔ تنظیم‌شده و کابل USB سالم. قبل از تغییر سیم‌کشی برق را قطع کنید.</li>
+</ul>
+<p>مبدل CP2102 یا CH340 فقط ارتباط USB/سریال را فراهم می‌کند؛ شمارهٔ GPIO در برنامه را تغییر نمی‌دهد. شمارهٔ پایه را از نوشتهٔ روی برد بخوانید، نه شمارهٔ فیزیکی پین در ردیف.</p>
+<h2>اتصالات ESP8266</h2>
+<h3>RC522 — تغذیه فقط 3.3V</h3>
+<table>
+<thead>
+<tr>
+<th>پایهٔ RC522</th>
+<th>NodeMCU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3.3V</td>
+<td>3V3</td>
+</tr>
+<tr>
+<td>GND</td>
+<td>GND</td>
+</tr>
+<tr>
+<td>SDA / SS</td>
+<td>D2 = GPIO4</td>
+</tr>
+<tr>
+<td>SCK</td>
+<td>D5 = GPIO14</td>
+</tr>
+<tr>
+<td>MISO</td>
+<td>D6 = GPIO12</td>
+</tr>
+<tr>
+<td>MOSI</td>
+<td>D7 = GPIO13</td>
+</tr>
+<tr>
+<td>RST</td>
+<td>3V3</td>
+</tr>
+<tr>
+<td>IRQ</td>
+<td>بدون اتصال</td>
+</tr>
+</tbody>
+</table>
+<p>SDA روی این کارت‌خوان در حالت SPI نقش SS دارد؛ آن را با SDA نمایشگر اشتباه نگیرید. RST عمداً به 3V3 متصل است؛ کتابخانه با <code>MFRC522::UNUSED_PIN</code> از ریست نرم‌افزاری استفاده می‌کند. از سیم‌های کوتاه استفاده کنید. کارت باید سازگار با RC522 و ۱۳٫۵۶ مگاهرتز باشد؛ تگ ۱۲۵ کیلوهرتز قابل خواندن نیست.</p>
+<h3>DHT11 و سنسور حرکت</h3>
+<table>
+<thead>
+<tr>
+<th>قطعه / پایه</th>
+<th>اتصال</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DHT11 VCC</td>
+<td>3V3</td>
+</tr>
+<tr>
+<td>DHT11 DATA</td>
+<td>D1 = GPIO5</td>
+</tr>
+<tr>
+<td>DHT11 GND</td>
+<td>GND</td>
+</tr>
+<tr>
+<td>DHT11 NC، در نسخهٔ چهارپایه</td>
+<td>بدون اتصال</td>
+</tr>
+<tr>
+<td>HC-SR505 VCC</td>
+<td>5V تنظیم‌شده</td>
+</tr>
+<tr>
+<td>HC-SR505 OUT</td>
+<td>D0 = GPIO16</td>
+</tr>
+<tr>
+<td>HC-SR505 GND</td>
+<td>GND همان NodeMCU</td>
+</tr>
+</tbody>
+</table>
+<p>ترتیب پین‌ها را بر اساس نوشته یا دیتاشیت همان قطعه تعیین کنید. در نسخهٔ HC-SR505 معرفی‌شده، تغذیهٔ ۵ ولت و خروجی ۳٫۳ ولت استفاده می‌شود. روی NodeMCUهای مختلف، نام و اتصال پایهٔ VU/VIN/5V متفاوت است؛ برای سنسور از خط ۵ ولت تأییدشده استفاده کنید. ۵ ولت به هیچ GPIO یا پایهٔ 3V3 ندهید.</p>
+<h3>LEDها — جهت اتصال مهم است</h3>
+<table>
+<thead>
+<tr>
+<th>LED</th>
+<th>مسیر اتصال</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>سبز</td>
+<td>3V3 → مقاومت 1kΩ → آند LED؛ کاتد LED → D4 / GPIO2</td>
+</tr>
+<tr>
+<td>قرمز</td>
+<td>D8 / GPIO15 → مقاومت 1kΩ → آند LED؛ کاتد LED → GND</td>
+</tr>
+</tbody>
+</table>
+<p>سبز با LOW و قرمز با HIGH روشن می‌شود. این انتخاب با وضعیت بوت GPIO2 (بالا) و GPIO15 (پایین) هماهنگ است. سبز را با اتصال معمول GPIO به آند و کاتد به زمین جایگزین نکنید؛ ممکن است بوت مختل شود. LED داخلی برخی NodeMCUها نیز همراه سبز روشن می‌شود. D3/GPIO0 برای این نسخه آزاد می‌ماند؛ بعداً بدون بررسی وضعیت بوت برای رله استفاده نشود.</p>
+<h2>اتصالات ESP32</h2>
+<h3>LCD از طریق مبدل سطح I2C</h3>
+<table>
+<thead>
+<tr>
+<th>اتصال</th>
+<th>مقصد</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LCD VCC</td>
+<td>5V</td>
+</tr>
+<tr>
+<td>LCD GND</td>
+<td>GND</td>
+</tr>
+<tr>
+<td>LCD SDA</td>
+<td>HV1 مبدل</td>
+</tr>
+<tr>
+<td>LCD SCL</td>
+<td>HV2 مبدل</td>
+</tr>
+<tr>
+<td>مبدل LV1</td>
+<td>GPIO21</td>
+</tr>
+<tr>
+<td>مبدل LV2</td>
+<td>GPIO22</td>
+</tr>
+<tr>
+<td>مبدل LV</td>
+<td>3V3 برد</td>
+</tr>
+<tr>
+<td>مبدل HV</td>
+<td>5V</td>
+</tr>
+<tr>
+<td>مبدل GND</td>
+<td>GND برد</td>
+</tr>
+</tbody>
+</table>
+<p>زمین LCD و مبدل و ESP32 مشترک باشد. رابط‌های I2C نمایشگر معمولاً مقاومت pull-up دارند؛ در حالت تغذیهٔ ۵ ولت، اتصال مستقیمشان به ESP32 مناسب نیست. کتابخانهٔ hd44780_I2Cexp آدرس و آرایش بسیاری از بردهای PCF8574 را خودکار پیدا می‌کند؛ نیازی به حدس 0x27 یا 0x3F نیست. برای خوانا شدن نوشته‌ها پیچ کنتراست پشت LCD را آرام تنظیم کنید.</p>
+<h3>گیرندهٔ مادون‌قرمز</h3>
+<table>
+<thead>
+<tr>
+<th>پایهٔ برد گیرنده</th>
+<th>ESP32</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VCC</td>
+<td>3V3، مشروط به پشتیبانی گیرنده از این ولتاژ</td>
+</tr>
+<tr>
+<td>GND</td>
+<td>GND</td>
+</tr>
+<tr>
+<td>IN / OUT / S</td>
+<td>GPIO27</td>
+</tr>
+</tbody>
+</table>
+<p>عکس ارسالی مدل دقیق گیرنده و محدودهٔ تغذیه‌اش را مشخص نمی‌کند؛ نوشتهٔ روی قطعه را بررسی کنید. اگر گیرنده فقط با ۵ ولت کار می‌کند، سیگنالش باید با مدار مناسب به حداکثر ۳٫۳ ولت تبدیل شود. ترتیب پایه‌های گیرندهٔ خام را حدس نزنید. ریموت باید باتری داشته باشد و رو به گیرنده باشد.</p>
+<h3>بازر دوپایه با ترانزیستور</h3>
+<table>
+<thead>
+<tr>
+<th>اتصال</th>
+<th>مقصد</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GPIO25</td>
+<td>مقاومت 1kΩ، سپس Base ترانزیستور</td>
+</tr>
+<tr>
+<td>Base</td>
+<td>مقاومت 100kΩ به GND</td>
+</tr>
+<tr>
+<td>Emitter</td>
+<td>GND</td>
+</tr>
+<tr>
+<td>Collector</td>
+<td>منفی بازر</td>
+</tr>
+<tr>
+<td>مثبت بازر</td>
+<td>تغذیه متناسب با ولتاژ نامی بازر</td>
+</tr>
+</tbody>
+</table>
+<p>پایه‌های B/C/E در بسته‌بندی‌های مختلف ترانزیستور متفاوت‌اند؛ دیتاشیت همان قطعه را ملاک قرار دهید. این مدار برای بازر کوچک با جریان حدود چند ده میلی‌آمپر است؛ بازر پرمصرف درایور متناسب می‌خواهد. زمین تغذیهٔ بازر و ESP32 مشترک باشد. بازر را مستقیم از GPIO تغذیه نکنید.</p>
+<p>صرفاً دوپایه بودن مشخص نمی‌کند بازر اکتیو است یا پسیو. در فایل ESP32 این گزینه را مطابق قطعه تنظیم کنید:</p>
+<pre><code class="language-cpp">const bool ACTIVE_BUZZER = false; // پسیو: تولید صدا با فرکانس
+// برای اکتیو مقدار را true کنید؛ تعداد و زمان بوق‌ها ثابت می‌ماند.
+</code></pre>
+<p>اگر هر برد با منبع مستقل تغذیه می‌شود، به دلیل ارتباط Wi-Fi لازم نیست زمین دو مجموعه را به هم وصل کنید؛ اما زمین قطعات هر مجموعه باید با همان برد مشترک باشد. خروجی مثبت دو منبع مستقل را به هم متصل نکنید. در استفادهٔ هم‌زمان از USB و تغذیهٔ خارجی، از بازخورانی به USB جلوگیری کنید و مدار تغذیهٔ برد خودتان را بررسی کنید.</p>
+<h2>نصب در Arduino IDE</h2>
+<ol>
+<li>Arduino IDE را نصب کنید. در Preferences، بخش Additional Boards Manager URLs این دو نشانی را وارد کنید:</li>
+</ol>
+<pre><code class="language-text">https://espressif.github.io/arduino-esp32/package_esp32_index.json
+https://arduino.esp8266.com/stable/package_esp8266com_index.json
+</code></pre>
+<ol>
+<li>
+<p>از Boards Manager، بسته‌های <code>esp32 by Espressif Systems</code> و <code>esp8266 by ESP8266 Community</code> را نصب کنید. این بسته با نسخهٔ 3.0.7 برای ESP32 و نسخهٔ 3.1.2 برای ESP8266 با موفقیت کامپایل شده است؛ جزئیات در VALIDATION.md است. برای شروع همین نسخه‌ها را انتخاب کنید.</p>
+</li>
+<li>
+<p>از Library Manager این کتابخانه‌ها را نصب کنید:</p>
+</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>کتابخانه</th>
+<th>نویسنده</th>
+<th>کاربرد</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hd44780 1.3.2</td>
+<td>Bill Perry</td>
+<td>LCD</td>
+</tr>
+<tr>
+<td>IRremote 4.4.1</td>
+<td>Armin Joachimsmeyer و همکاران</td>
+<td>ریموت</td>
+</tr>
+<tr>
+<td>MFRC522</td>
+<td>GithubCommunity</td>
+<td>RC522؛ نسخهٔ 1.4.12</td>
+</tr>
+<tr>
+<td>DHT sensor library 1.4.6</td>
+<td>Adafruit</td>
+<td>DHT11</td>
+</tr>
+<tr>
+<td>Adafruit Unified Sensor 1.1.15</td>
+<td>Adafruit</td>
+<td>وابستگی DHT</td>
+</tr>
+</tbody>
+</table>
+<p>WiFi، SPI، Wire، Preferences و LittleFS همراه بستهٔ برد هستند؛ کتابخانهٔ جداگانهٔ همنام نصب نکنید.</p>
+<ol>
+<li>
+<p>فایل ZIP را Extract کنید. هر فایل ino را از پوشهٔ هم‌نام خودش باز کنید؛ <code>Core.h</code> باید کنار آن بماند.</p>
+</li>
+<li>
+<p>برای ESP32، برد <code>ESP32 Dev Module</code> و پورت درست را انتخاب و <code>ESP32_Master.ino</code> را آپلود کنید. برای NodeMCU، <code>NodeMCU 1.0 (ESP-12E Module)</code> را انتخاب کنید. در تنظیم Flash Size گزینهٔ ۴ مگابایت با حداقل ۱ مگابایت filesystem را انتخاب کنید، مثلاً <code>4MB (FS:1MB OTA:~1019KB)</code>، سپس <code>ESP8266_Node.ino</code> را آپلود کنید. در صورت تفاوت واقعی ظرفیت برد، تنظیم را مطابق برد اصلاح کنید.</p>
+</li>
+<li>
+<p>پس از ذخیرهٔ کارت‌ها، هنگام آپلودهای بعدی گزینهٔ پاک‌کردن کامل فلش را فعال نکنید و اندازهٔ filesystem را تغییر ندهید.</p>
+</li>
+<li>
+<p>مقدارهای زیر در ابتدای هر دو برنامه دقیقاً یکسان باشند. رمز نمونه را پیش از استفادهٔ واقعی در هر دو فایل عوض کنید:</p>
+</li>
+</ol>
+<pre><code class="language-cpp">WIFI_SSID = &quot;ESP_Access_System&quot;
+WIFI_PASSWORD = &quot;AccessDemo4826&quot;
+DEVICE_TOKEN = &quot;access-node-v1-4826&quot;
+</code></pre>
+<p>نیازی نیست گوشی یا رایانه به شبکه وصل شود؛ شبکه در این نسخه فقط یک اتصال Wi-Fi را می‌پذیرد و آن اتصال برای ESP8266 است.</p>
+<h2>اولین راه‌اندازی، به ترتیب</h2>
+<ol>
+<li>با برق قطع، سیم‌کشی را انجام دهید. هر برد را با USB یا منبع مناسب روشن کنید.</li>
+<li>Serial Monitor مربوط به ESP8266 را با سرعت <code>115200</code> و پایان خط <code>Newline</code> باز کنید. اگر پیام Storage unavailable مشاهده شد و این <strong>اولین راه‌اندازی روی حافظهٔ خالی</strong> است، <code>FORMAT</code> را بنویسید و Enter بزنید. این فرمان همهٔ کارت‌ها/فایل‌های LittleFS را پاک می‌کند؛ در عیب‌یابی یک دستگاه دارای کارت، بی‌دلیل اجرا نکنید.</li>
+<li>Serial Monitor مربوط به ESP32 را با سرعت <code>115200</code> باز کنید. در اولین بوت، نمایشگر تا ۶۰ ثانیه <code>Teach remote / Press button 1</code> نشان می‌دهد. دکمهٔ <strong>۱</strong> ریموت را یک بار بزنید. پیام <code>Remote key saved</code> یعنی کد دکمه در حافظه ذخیره شد. اولین فشار فقط آموزش دکمه است، نه ثبت کارت.</li>
+<li>اگر فرصت تمام شد یا دکمهٔ اشتباه یاد گرفته شد، حرف <code>L</code> را از Serial Monitor به ESP32 بفرستید و دوباره دکمهٔ ۱ را بزنید. کلید ذخیره‌شده با خاموش‌کردن پاک نمی‌شود. پس از تغییر عمدهٔ نسخهٔ IRremote، بهتر است با <code>L</code> دوباره آموزش دهید.</li>
+<li>صبر کنید اتصال برقرار و اطلاعات DHT11 نمایش داده شود. برای آزمون حرکت حداقل ۳۰ ثانیه صبر کنید.</li>
+<li>کارتی نزدیک کنید: در حافظهٔ خالی، باید LED قرمز و <code>Access Denied</code> ببینید و سه بوق بشنوید.</li>
+<li>کارت را از کارت‌خوان دور کنید. دکمهٔ ۱ را بزنید و منتظر <code>Scan new card</code> بمانید. سپس حداکثر تا ۲۰ ثانیه کارت را نزدیک کنید: <code>Card saved</code>، LED سبز و دو بوق.</li>
+<li>کارت را دور و دوباره نزدیک کنید: <code>Access Granted</code> و LED سبز.</li>
+<li>هر دو برد را خاموش و روشن کنید؛ همان کارت همچنان باید شناخته شود.</li>
+<li>کارت ثبت‌نشدهٔ دیگری را امتحان کنید؛ باید رد شود. دوباره ثبت همان کارت قبلی باید <code>Already saved</code> نشان دهد.</li>
+<li>بدون نزدیک‌کردن کارت، ثبت را فعال کنید؛ پس از ۲۰ ثانیه باید لغو شود. برای حرکت دوباره، صبر کنید خروجی PIR ابتدا LOW شود.</li>
+<li>ESP8266 را خاموش کنید؛ حداکثر چند ثانیه بعد <code>Node offline</code> ظاهر شود. پس از روشن کردن، ارتباط باید خودکار برگردد.</li>
+</ol>
+<h2>عیب‌یابی</h2>
+<table>
+<thead>
+<tr>
+<th>مشکل</th>
+<th>بررسی</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LCD روشن ولی بدون متن</td>
+<td>پیچ کنتراست، اتصال LV/HV، زمین مشترک و SDA/SCL</td>
+</tr>
+<tr>
+<td>RC522 version برابر 0x00 یا 0xFF</td>
+<td>برق 3V3، سیم‌های SPI، SS روی D2، RST روی 3V3</td>
+</tr>
+<tr>
+<td>NodeMCU بوت نمی‌شود</td>
+<td>جهت LED سبز و قرمز و سطح GPIO2/GPIO15 را بررسی کنید</td>
+</tr>
+<tr>
+<td>DHT11 no data</td>
+<td>DATA روی D1، ترتیب پایه‌ها، pull-up و تغذیه</td>
+</tr>
+<tr>
+<td>IR هیچ خروجی سریال ندارد</td>
+<td>باتری ریموت، جهت گیرنده، مدل و پایه‌ها، ولتاژ مجاز</td>
+</tr>
+<tr>
+<td>IR پروتکل UNKNOWN دارد</td>
+<td>سیگنال قابل شناسایی نیست؛ خروجی سریال و مدل ریموت را بررسی کنید</td>
+</tr>
+<tr>
+<td>Node offline</td>
+<td>یکسان بودن SSID/رمز/token، روشن بودن دو برد و عدم اتصال گوشی به شبکه</td>
+</tr>
+<tr>
+<td>Storage error</td>
+<td>تنظیم filesystem، پیام Serial Monitor و سالم بودن فایل؛ FORMAT پاک‌کننده است</td>
+</tr>
+<tr>
+<td>بازر بی‌صدا یا فقط تق می‌زند</td>
+<td>اکتیو/پسیو، ولتاژ نامی، پایه‌های ترانزیستور و زمین مشترک</td>
+</tr>
+</tbody>
+</table>
+<h2>محدودیت و رلهٔ آینده</h2>
+<p>این نسخه یک نمونهٔ آموزشی مبتنی بر UID کارت است؛ UID می‌تواند قابل کپی باشد و ریموت نیز احراز هویت مدیریتی قوی ندارد. برای قفل واقعی، طراحی احراز هویت و مدار خروجی باید تقویت شود. CRC تشخیص خرابی تصادفی است، نه امضای امنیتی.</p>
+<p>رله در این نسخه فعال نیست. محل افزودن رفتار آن در شاخهٔ کارت مجاز در <code>scanCard()</code> مشخص شده است. انتخاب پایه، تغذیه، درایور و زمان فعال‌بودن پس از مشخص شدن مدل رله انجام می‌شود؛ رله را مستقیم به GPIO وصل نکنید.</p>
+<h2>منابع فنی</h2>
+<ul>
+<li>ESP32 Wi-Fi: https://docs.espressif.com/projects/arduino-esp32/en/latest/api/wifi.html</li>
+<li>ESP8266 filesystem: https://arduino-esp8266.readthedocs.io/en/latest/filesystem.html</li>
+<li>ESP8266 boards: https://arduino-esp8266.readthedocs.io/en/latest/boards.html</li>
+<li>MFRC522: https://github.com/miguelbalboa/rfid</li>
+<li>IRremote: https://github.com/Arduino-IRremote/Arduino-IRremote</li>
+<li>hd44780: https://github.com/duinoWitchery/hd44780</li>
+<li>PCF8574: https://www.ti.com/lit/ds/symlink/pcf8574.pdf</li>
+<li>مدل HC-SR505 معرفی‌شده: https://thecaferobot.com/store/hc-sr505-pir-motion-sensor</li>
+</ul></body></html>
